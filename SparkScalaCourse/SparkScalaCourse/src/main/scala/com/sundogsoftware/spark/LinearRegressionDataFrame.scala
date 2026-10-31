@@ -22,8 +22,8 @@ object LinearRegressionDataFrame {
       .config("spark.sql.warehouse.dir", "file:///C:/temp") // Necessary to work around a Windows bug in Spark 2.0.0; omit if you're not on Windows.
       .getOrCreate()
       
-    // Load up our page speed / amount spent data in the format required by MLLib
-    // (which is label, vector of features)
+    // MLlib expects a numeric target column named "label" and a Vector
+    // column named "features". Each line here is label,feature.
       
     // In machine learning lingo, "label" is just the value you're trying to predict, and
     // "feature" is the data you are given to make a prediction with. So in this example
@@ -32,7 +32,7 @@ object LinearRegressionDataFrame {
     val inputLines = spark.sparkContext.textFile("data/regression.txt")
     val data = inputLines.map(_.split(",")).map(x => (x(0).toDouble, Vectors.dense(x(1).toDouble)))
     
-    // Convert this RDD to a DataFrame
+    // Give the two tuple fields the names required by the estimator.
     import spark.implicits._
     val colNames = Seq("label", "features")
     val df = data.toDF(colNames: _*)
@@ -41,29 +41,31 @@ object LinearRegressionDataFrame {
     // Perhaps you're importing data from a real database. Or you are using structured streaming
     // to get your data.
      
-    // Let's split our data into training data and testing data
+    // The model learns from the training portion and is evaluated on held-out
+    // test rows. This split is random, so results can vary between runs.
     val trainTest = df.randomSplit(Array(0.5, 0.5))
     val trainingDF = trainTest(0)
     val testDF = trainTest(1)
     
-    // Now create our linear regression model
+    // Configure the estimator: regularization controls model complexity,
+    // maxIter limits training steps, and tol is the convergence tolerance.
     val lir = new LinearRegression()
       .setRegParam(0.3) // regularization 
       .setElasticNetParam(0.8) // elastic net mixing
       .setMaxIter(100) // max iterations
       .setTol(1E-6) // convergence tolerance
     
-    // Train the model using our training data
+    // fit learns the model parameters from the training rows.
     val model = lir.fit(trainingDF)
     
-    // Now see if we can predict values in our test data.
-    // Generate predictions using our linear regression model for all features in our 
-    // test dataframe:
+    // transform applies the learned model to test rows and appends a
+    // "prediction" column. cache keeps this result available for reuse.
     val fullPredictions = model.transform(testDF).cache()
     
     // This basically adds a "prediction" column to our testDF dataframe.
     
-    // Extract the predictions and the "known" correct labels.
+    // Compare each model prediction with the known label from the test set.
+    // This example prints pairs but does not calculate an overall error metric.
     val predictionAndLabel = fullPredictions.select("prediction", "label").rdd.map(x => (x.getDouble(0), x.getDouble(1)))
     
     // Print out the predicted and actual values for each point

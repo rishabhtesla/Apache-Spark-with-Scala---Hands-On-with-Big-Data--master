@@ -7,7 +7,8 @@ import org.apache.spark.graphx._
 /** Some examples of GraphX in action with the Marvel superhero dataset! */
 object GraphX {
   
-  // Function to extract hero ID -> hero name tuples (or None in case of failure)
+  // Each valid line becomes (vertex ID, display name). None means the line
+  // is not a usable character record; flatMap later discards it.
   def parseNames(line: String) : Option[(VertexId, String)] = {
     val fields = line.split('\"')
     if (fields.length > 1) {
@@ -20,7 +21,7 @@ object GraphX {
     None // flatmap will just discard None results, and extract data from Some results.
   }
   
-  /** Transform an input line from marvel-graph.txt into a List of Edges */
+  /** Turn one hero's adjacency-list row into directed edges to its co-appearing heroes. */
   def makeEdges(line: String) : List[Edge[Int]] = {
     import scala.collection.mutable.ListBuffer
     var edges = new ListBuffer[Edge[Int]]()
@@ -44,34 +45,38 @@ object GraphX {
      // Create a SparkContext using every core of the local machine
     val sc = new SparkContext("local[*]", "GraphX")
     
-     // Build up our vertices
+     // Vertices are (hero ID, hero name) pairs. Edges connect heroes who
+     // appeared together; the third Edge field is an integer edge attribute.
     val names = sc.textFile("data/marvel-names.txt")
     val verts = names.flatMap(parseNames)
     
-    // Build up our edges
     val lines = sc.textFile("data/marvel-graph.txt")
     val edges = lines.flatMap(makeEdges)    
     
-    // Build up our graph, and cache it as we're going to do a bunch of stuff with it.
+    // The default value supplies an attribute for any edge endpoint lacking
+    // an explicit name. Cache because the graph is queried more than once.
     val default = "Nobody"
     val graph = Graph(verts, edges, default).cache()
     
-    // Find the top 10 most-connected superheroes, using graph.degrees:
+    // degree is the number of incident connections per vertex. Joining with
+    // verts adds each hero's name; take(10) returns only ten rows to the driver.
     println("\nTop 10 most-connected superheroes:")
     // The join merges the hero names into the output; sorts by total connections on each node.
     graph.degrees.join(verts).sortBy(_._2._1, ascending=false).take(10).foreach(println)
 
 
-    // Now let's do Breadth-First Search using the Pregel API
+    // Pregel iteratively sends messages over edges. The vertex attribute here
+    // is the shortest distance found so far from the chosen root.
     println("\nComputing degrees of separation from SpiderMan...")
     
     // Start from SpiderMan
     val root: VertexId = 5306 // SpiderMan
     
-    // Initialize each node with a distance of infinity, unless it's our starting point
+    // The starting hero has distance zero; infinity means not reached yet.
     val initialGraph = graph.mapVertices((id, _) => if (id == root) 0.0 else Double.PositiveInfinity)
 
-    // Now the Pregel magic
+    // Pregel arguments: initial message, maximum iterations, vertex update,
+    // message-send rule, and message-reduction rule.
     val bfs = initialGraph.pregel(Double.PositiveInfinity, 10)( 
         // Our "vertex program" preserves the shortest distance
         // between an inbound message and its current value.

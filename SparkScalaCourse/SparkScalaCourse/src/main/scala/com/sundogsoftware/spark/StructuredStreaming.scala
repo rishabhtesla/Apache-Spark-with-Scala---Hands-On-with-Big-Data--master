@@ -20,7 +20,8 @@ object StructuredStreaming {
       .master("local[*]")
       .getOrCreate()
 
-    // Streaming source that monitors the data/logs directory for text files
+    // This is an unbounded input: Spark discovers new text files placed in
+    // this directory after the query starts. Each row has a "value" string.
     val accessLines = spark.readStream.text("data/logs")
 
     // Regular expressions to extract pieces of Apache access log lines
@@ -30,7 +31,8 @@ object StructuredStreaming {
     val timeExp = "\\[(\\d{2}/\\w{3}/\\d{4}:\\d{2}:\\d{2}:\\d{2} -\\d{4})]"
     val hostExp = "(^\\S+\\.[\\S+\\.]+\\S+)\\s"
 
-    // Apply these regular expressions to create structure from the unstructured text
+    // regexp_extract returns the selected capture group from each input line.
+    // Naming the extracted columns turns raw log text into queryable fields.
     val logsDF = accessLines.select(regexp_extract(col("value"), hostExp, 1).alias("host"),
     regexp_extract(col("value"), timeExp, 1).alias("timestamp"),
     regexp_extract(col("value"), generalExp, 1).alias("method"),
@@ -39,13 +41,15 @@ object StructuredStreaming {
     regexp_extract(col("value"), statusExp, 1).cast("Integer").alias("status"),
     regexp_extract(col("value"), contentSizeExp, 1).cast("Integer").alias("content_size"))
 
-    // Keep a running count of status codes
+    // Grouping a stream requires an output mode. "complete" emits the full
+    // current aggregation table each trigger, rather than only changed rows.
     val statusCountsDF = logsDF.groupBy("status").count()
 
-    // Display the stream to the console
+    // start launches the streaming query asynchronously. The console sink is
+    // useful for learning; production jobs usually write to durable storage.
     val query = statusCountsDF.writeStream.outputMode("complete").format("console").queryName("counts").start()
 
-    // Wait until we terminate the scripts
+    // Keep the application alive while the query runs; stop it with Ctrl-C.
     query.awaitTermination()
 
     // Stop the session
@@ -53,4 +57,3 @@ object StructuredStreaming {
   }
   
 }
-

@@ -15,18 +15,21 @@ object WordCount {
      // Create a SparkContext using every core of the local machine
     val sc = new SparkContext("local[*]", "WordCount")   
     
-    // Read each line of my book into an RDD
+    // Read each line of the book into an RDD[String]. An RDD is a
+    // distributed collection that Spark can process in parallel.
     val input = sc.textFile("data/book.txt")
     
-    // Split into words separated by a space character
+    // Each input line becomes an array of words; flatMap flattens those
+    // arrays so the result is one RDD element per word.
     val words = input.flatMap(x => x.split(" "))
     
-    // Count up the occurrences of each word
+    // countByValue is an action: Spark computes the counts and returns the
+    // resulting map to the driver. This is convenient for this small book,
+    // but large result maps should not be collected to the driver.
     val wordCounts = words.countByValue()
     
-    // Print the results.
+    // The map's iteration order is not guaranteed, so output order may vary.
     wordCounts.foreach(println)
   }
   
 }
-

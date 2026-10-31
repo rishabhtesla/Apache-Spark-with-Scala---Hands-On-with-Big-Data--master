@@ -15,11 +15,13 @@ object DegreesOfSeparation {
   val startCharacterID = 5306 //SpiderMan
   val targetCharacterID = 14 //ADAM 3,031 (who?)
   
-  // We make our accumulator a "global" Option so we can reference it in a mapper later.
+  // The mapper runs on Spark workers, while the accumulator is created by the
+  // driver. Option lets the helper methods detect whether it has been set up.
   var hitCounter:Option[LongAccumulator] = None
   
   // Some custom data types 
-  // BFSData contains an array of hero ID connections, the distance, and color.
+  // BFSData holds a vertex's adjacency list, shortest known distance, and
+  // traversal state (WHITE=unseen, GRAY=frontier, BLACK=already expanded).
   type BFSData = (Array[Int], Int, String)
   // A BFSNode has a heroID and the BFSData associated with it.
   type BFSNode = (Int, BFSData)
@@ -39,7 +41,8 @@ object DegreesOfSeparation {
       connections += fields(connection).toInt
     }
     
-    // Default distance and color is 9999 and white
+    // Unvisited vertices start at a large sentinel distance and WHITE state.
+    // The source is the initial frontier (GRAY) at distance zero.
     var color:String = "WHITE"
     var distance:Int = 9999
     
@@ -73,16 +76,16 @@ object DegreesOfSeparation {
     // of potentially many BFSNodes to add to our new RDD
     var results:ArrayBuffer[BFSNode] = ArrayBuffer()
     
-    // Gray nodes are flagged for expansion, and create new
-    // gray nodes for each connection
+    // Expand only the current frontier. Each neighbor receives a candidate
+    // distance one greater than this vertex's distance.
     if (color == "GRAY") {
       for (connection <- connections) {
         val newCharacterID = connection
         val newDistance = distance + 1
         val newColor = "GRAY"
         
-        // Have we stumbled across the character we're looking for?
-        // If so increment our accumulator so the driver script knows.
+        // Record that the target was reached from this frontier. The driver
+        // checks the accumulator after an action evaluates this work.
         if (targetCharacterID == connection) {
           if (hitCounter.isDefined) {
             hitCounter.get.add(1)
@@ -98,15 +101,15 @@ object DegreesOfSeparation {
       color = "BLACK"
     }
     
-    // Add the original node back in, so its connections can get merged with 
-    // the gray nodes in the reducer.
+    // Keep the original node and its edges. reduceByKey will merge it with
+    // newly generated candidates for the same hero ID.
     val thisEntry:BFSNode = (characterID, (connections, distance, color))
     results += thisEntry
     
     results.toArray
   }
   
-  /** Combine nodes for the same heroID, preserving the shortest length and darkest color. */
+  /** Merge candidates for one hero: keep its edges, shortest distance, and most advanced state. */
   def bfsReduce(data1:BFSData, data2:BFSData): BFSData = {
     
     // Extract data that we are combining
@@ -180,13 +183,12 @@ object DegreesOfSeparation {
     for (iteration <- 1 to 10) {
       println("Running BFS Iteration# " + iteration)
    
-      // Create new vertices as needed to darken or reduce distances in the
-      // reduce stage. If we encounter the node we're looking for as a GRAY
-      // node, increment our accumulator to signal that we're done.
+      // Expand the current frontier and generate candidate states for
+      // neighbors. flatMap returns one or more candidates per input node.
       val mapped = iterationRdd.flatMap(bfsMap)
       
-      // Note that mapped.count() action here forces the RDD to be evaluated, and
-      // that's the only reason our accumulator is actually updated.  
+      // count is an action, so it runs bfsMap on the workers. This is also
+      // when the accumulator updates become visible to the driver.
       println("Processing " + mapped.count() + " values.")
       
       if (hitCounter.isDefined) {
@@ -198,8 +200,7 @@ object DegreesOfSeparation {
         }
       }
       
-      // Reducer combines data for each character ID, preserving the darkest
-      // color and shortest path.      
+      // Merge all candidate records for each hero before the next BFS level.
       iterationRdd = mapped.reduceByKey(bfsReduce)
     }
   }

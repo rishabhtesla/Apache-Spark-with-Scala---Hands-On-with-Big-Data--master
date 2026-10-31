@@ -20,7 +20,7 @@ The course starts with a short Scala refresher, then moves from Spark's executio
 
 The SBT project is in `SparkScalaCourse/SparkScalaCourse/`. Its Scala examples are in `src/main/scala/com/sundogsoftware/spark/`, and its input files are in the project's `data/` directory. Run Spark examples from the SBT project directory so relative paths such as `data/book.txt` resolve correctly.
 
-The project is an older course snapshot. Its `build.sbt` declares Scala **2.12.12**, Spark **3.0.0**, and Twitter4J **4.0.4**; its SBT wrapper configuration declares SBT **1.3.13**. These versions are part of the learning context, not a recommendation to use them for a new production application. The guides explain the code as it exists and call out relevant platform or data-format caveats rather than silently changing the examples.
+The project is an older course snapshot. Its `build.sbt` declares Scala **2.12.12**, Spark **3.0.0**, and Twitter4J **4.0.4**; its SBT wrapper configuration declares SBT **1.3.13**. These versions are part of the learning context, not a recommendation to use them for a new production application. This checkout compiled with **JDK 11**; its older SBT launcher fails under JDK 26, so use JDK 11 if you encounter launcher or compiler errors on a newer Java version. The guides explain the code as it exists and call out relevant platform or data-format caveats rather than silently changing the examples.
 
 ## Start here
 
@@ -59,4 +59,3 @@ Then read the relevant module guide, run the program, and change one thing at a 
 - Input paths in these examples are relative to the project directory.
 - Some examples expect command-line arguments, credentials, or platform-specific paths. Their module guide identifies these before you run them.
 - Do not put real service credentials into source control. The Twitter example reads credentials from `data/twitter.txt`; use only your own credentials and keep them private.
-

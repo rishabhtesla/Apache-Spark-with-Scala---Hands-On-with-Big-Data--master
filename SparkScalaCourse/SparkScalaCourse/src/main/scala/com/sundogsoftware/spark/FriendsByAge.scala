@@ -10,10 +10,11 @@ object FriendsByAge {
   def parseLine(line: String): (Int, Int) = {
       // Split by commas
       val fields = line.split(",")
-      // Extract the age and numFriends fields, and convert to integers
+      // The input columns are id, name, age, friends; index 0 is the first
+      // column. Convert the two fields needed for this analysis to integers.
       val age = fields(2).toInt
       val numFriends = fields(3).toInt
-      // Create a tuple that is our result.
+      // Return (key, value): age is the grouping key; friends is its value.
       (age, numFriends)
   }
   
@@ -32,18 +33,18 @@ object FriendsByAge {
     // Use our parseLines function to convert to (age, numFriends) tuples
     val rdd = lines.map(parseLine)
     
-    // Lots going on here...
-    // We are starting with an RDD of form (age, numFriends) where age is the KEY and numFriends is the VALUE
-    // We use mapValues to convert each numFriends value to a tuple of (numFriends, 1)
-    // Then we use reduceByKey to sum up the total numFriends and total instances for each age, by
-    // adding together all the numFriends values and 1's respectively.
+    // Starting shape: (age, friends). mapValues keeps each age key and
+    // changes its value into (friends, 1), where 1 counts this input row.
+    // reduceByKey adds both tuple fields for every record with the same age,
+    // producing (age, (totalFriends, numberOfPeople)).
     val totalsByAge = rdd.mapValues(x => (x, 1)).reduceByKey( (x,y) => (x._1 + y._1, x._2 + y._2))
     
-    // So now we have tuples of (age, (totalFriends, totalInstances))
-    // To compute the average we divide totalFriends / totalInstances for each age.
+    // Divide the two totals for each age. Because both are Ints, this uses
+    // integer division and drops any fractional part.
     val averagesByAge = totalsByAge.mapValues(x => x._1 / x._2)
     
-    // Collect the results from the RDD (This kicks off computing the DAG and actually executes the job)
+    // collect is an action: it executes the RDD plan and copies every result
+    // to the driver. This is appropriate for the small age summary.
     val results = averagesByAge.collect()
     
     // Sort and print the final results.

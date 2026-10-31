@@ -8,6 +8,9 @@ object DataFrames {
   case class Person(ID:Int, name:String, age:Int, numFriends:Int)
   
   def mapper(line:String): Person = {
+    // Expected order: id,name,age,friends. This parser assumes every line is
+    // data; the checked-in fakefriends.csv has a header, so its first line
+    // must be skipped or this Int conversion will fail.
     val fields = line.split(',')  
     
     val person:Person = Person(fields(0).toInt, fields(1), fields(2).toInt, fields(3).toInt)
@@ -29,10 +32,12 @@ object DataFrames {
       .config("spark.sql.warehouse.dir", "file:///C:/temp") // Necessary to work around a Windows bug in Spark 2.0.0; omit if you're not on Windows.
       .getOrCreate()
     
-    // Convert our csv file to a DataSet, using our Person case
-    // class to infer the schema.
+    // A case class supplies the schema when converting the parsed RDD to a
+    // Dataset. The source is manually parsed here rather than read as CSV.
     import spark.implicits._
     val lines = spark.sparkContext.textFile("data/fakefriends.csv")
+    // map parses each text line into a Person; toDS exposes typed columns.
+    // cache reuses the parsed data for the several actions below.
     val people = lines.map(mapper).toDS().cache()
     
     // There are lots of other ways to make a DataFrame.

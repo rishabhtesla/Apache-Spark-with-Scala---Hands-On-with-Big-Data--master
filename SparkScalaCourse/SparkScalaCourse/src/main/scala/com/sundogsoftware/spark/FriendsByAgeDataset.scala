@@ -7,7 +7,8 @@ import org.apache.spark.sql.functions._
 /** Compute the average number of friends by age in a social network. */
 object FriendsByAgeDataset {
 
-  // Create case class with schema of fakefriends.csv
+  // Field names/types should match the CSV columns so .as[FakeFriends] can
+  // create a typed Dataset after Spark reads the header and schema.
   case class FakeFriends(id: Int, name: String, age: Int, friends: Long)
 
   /** Our main function where the action happens */
@@ -23,7 +24,8 @@ object FriendsByAgeDataset {
       .master("local[*]")
       .getOrCreate()
 
-    // Load each line of the source data into an Dataset
+    // header=true uses the first row as column names; inferSchema determines
+    // types from the file. .as[FakeFriends] gives the rows a Scala type.
     import spark.implicits._
     val ds = spark.read
       .option("header", "true")
@@ -31,10 +33,11 @@ object FriendsByAgeDataset {
       .csv("data/fakefriends.csv")
       .as[FakeFriends]
 
-    // Select only age and numFriends columns
+    // Keep only the two columns needed for this calculation.
     val friendsByAge = ds.select("age", "friends")
 
-    // From friendsByAge we group by "age" and then compute average
+    // groupBy creates one group per age; avg computes the mean friend count
+    // within each group. Each following line shows a different presentation.
     friendsByAge.groupBy("age").avg("friends").show()
 
     // Sorted:

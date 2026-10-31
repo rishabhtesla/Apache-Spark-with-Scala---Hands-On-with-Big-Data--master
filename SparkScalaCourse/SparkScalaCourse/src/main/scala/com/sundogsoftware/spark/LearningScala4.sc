@@ -1,12 +1,11 @@
 // Data structures
 
-// Tuples
-// Immutable lists
+// A tuple groups a fixed number of values, which may have different types.
 
 val captainStuff = ("Picard", "Enterprise-D", "NCC-1701-D")
 println(captainStuff)
 
-// Refer to the individual fields with a ONE-BASED index
+// Tuple accessors are numbered from 1, unlike list/array indexes.
 println(captainStuff._1)
 println(captainStuff._2)
 println(captainStuff._3)
@@ -16,9 +15,8 @@ println(picardsShip._2)
 
 val aBunchOfStuff = ("Kirk", 1964, true)
 
-// Lists
-// Like a tuple, but more functionality
-// Must be of same type
+// A List is an ordered collection whose elements share a type. List is
+// immutable: operations below return new lists rather than changing shipList.
 
 val shipList = List("Enterprise", "Defiant", "Voyager", "Deep Space Nine")
 
@@ -33,12 +31,13 @@ for (ship <- shipList) {println(ship)}
 val backwardShips = shipList.map( (ship: String) => {ship.reverse})
 for (ship <- backwardShips) {println(ship)}
 
-// reduce() to combine together all the items in a collection using some function
+// reduce combines the collection into one value. It needs a non-empty list
+// and a combining operation that can be applied repeatedly.
 val numberList = List(1, 2, 3, 4,5 )
 val sum = numberList.reduce( (x: Int, y: Int) => x + y)
 println(sum)
 
-// filter() removes stuff
+// filter returns a new collection containing only elements that pass a test.
 val iHateFives = numberList.filter( (x: Int) => x != 5)
 
 val iHateThrees = numberList.filter(_ != 3)
@@ -55,7 +54,8 @@ val maxValue = numberList.max
 val total = numberList.sum
 val hasThree = iHateThrees.contains(3)
 
-// MAPS
+// A Map stores key -> value associations. Direct lookup throws if a key is
+// absent; Try(...).getOrElse(...) demonstrates one way to provide a fallback.
 val shipMap = Map("Kirk" -> "Enterprise", "Picard" -> "Enterprise-D", "Sisko" -> "Deep Space Nine", "Janeway" -> "Voyager")
 println(shipMap("Janeway"))
 println(shipMap.contains("Archer"))

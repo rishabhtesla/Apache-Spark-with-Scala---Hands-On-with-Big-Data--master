@@ -14,7 +14,7 @@ import scala.collection.mutable
 
 object MovieRecommendationsALS {
   
-  /** Load up a Map of movie IDs to movie names. */
+  /** Load the local lookup table used to turn numeric movie IDs into titles. */
   def loadMovieNames() : Map[Int, String] = {
     
     // Handle character encoding issues:
@@ -22,7 +22,8 @@ object MovieRecommendationsALS {
     codec.onMalformedInput(CodingErrorAction.REPLACE)
     codec.onUnmappableCharacter(CodingErrorAction.REPLACE)
 
-    // Create a Map of Ints to Strings, and populate it from u.item.
+    // Build an in-memory lookup: movie ID -> title. This small metadata file
+    // is separate from the user-rating records used to train ALS.
     var movieNames:Map[Int, String] = Map()
     
      val lines = Source.fromFile("data/ml-100k/u.item")
@@ -37,7 +38,7 @@ object MovieRecommendationsALS {
      movieNames
   }
   
-  // Row format to feed into ALS
+  // One training example: a user rated a movie with this numeric score.
   case class Rating(userId: Int, movieId: Int, rating: Float)
     
   /** Our main function where the action happens */
@@ -60,9 +61,12 @@ object MovieRecommendationsALS {
  
     val data = spark.read.textFile("data/ml-100k/u.data")
     
+    // u.data is tab-separated: user ID, movie ID, rating, timestamp.
+    // This model uses the first three fields and ignores the timestamp.
     val ratings = data.map( x => x.split('\t') ).map( x => Rating(x(0).toInt, x(1).toInt, x(2).toFloat) ).toDF()
     
-    // Build the recommendation model using Alternating Least Squares
+    // ALS learns latent user/item factors from known ratings. The column
+    // settings identify the user, item, and rating fields.
     println("\nTraining recommendation model...")
     
     val als = new ALS()
@@ -74,12 +78,14 @@ object MovieRecommendationsALS {
     
     val model = als.fit(ratings)
       
-    // Get top-10 recommendations for the user we specified
+    // The user ID comes from the first command-line argument, e.g. "1".
+    // recommendForUserSubset returns ten items with the highest predicted scores.
     val userID:Int = args(0).toInt
     val users = Seq(userID).toDF("userId")
     val recommendations = model.recommendForUserSubset(users, 10)
     
-    // Display them (oddly, this is the hardest part!)
+    // Each result row contains a user ID and an array of recommendation rows.
+    // Each nested row contains a recommended movie ID and its predicted rating.
     println("\nTop 10 recommendations for user ID " + userID + ":")
  
     for (userRecs <- recommendations) {

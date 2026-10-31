@@ -34,7 +34,8 @@ while (x >= 0) {
 x = 0
 do { println(x); x+=1 } while (x <= 10)
 
-// Expressions
+// Expressions: a block's last expression is its result. Braces group
+// declarations and a value together.
 
 {val x = 10; x + 20}
 
